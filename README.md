@@ -12,7 +12,7 @@
 | | |
 |---|---|
 | **多來源容錯** | 每個來源都有主網址 + jsDelivr 鏡像，單一下載失敗自動切換 |
-| **跨來源全域去重** | 12 個來源合併成一份，沒有重複計費 |
+| **跨來源全域去重** | 12 個來源合併成一份，沒有重複政策 |
 | **CIDR 等價合併** | 用 `ipaddress.collapse_addresses()` 把「完全被涵蓋」的相鄰 IP 併成網段，**不會多擋任何一個 IP** |
 | **自動切塊** | 避開 RouterOS `/import` 的 `Use verbose mode for large files` 限制 |
 | **DNS 故障繞過** | Ubuntu 上 DNS 壞掉時自動改走 `resolvectl` / `dig` 直查公共 DNS |
