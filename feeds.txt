@@ -1,0 +1,28 @@
+# 來源定義： name | 主要網址 | 鏡像網址 | 最低筆數 | strict(input鏈)
+# strict=yes 的來源建議納入 input 鏈（擋 router 自身）；其餘放 forward 鏈。
+# 最低筆數：低於此值會標示警告（用來發現上游改版），不會中止。
+
+# --- FireHOL (https://github.com/firehol/blocklist-ipsets) ---
+# 整個 repo 每日更新一次；level4 含大量 IDC/雲端段，誤報率最高。
+fh_l1|https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset|https://cdn.jsdelivr.net/gh/firehol/blocklist-ipsets@master/firehol_level1.netset|3000|yes
+fh_l2|https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level2.netset|https://cdn.jsdelivr.net/gh/firehol/blocklist-ipsets@master/firehol_level2.netset|10000|yes
+fh_l3|https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level3.netset|https://cdn.jsdelivr.net/gh/firehol/blocklist-ipsets@master/firehol_level3.netset|8000|no
+fh_l4|https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level4.netset|https://cdn.jsdelivr.net/gh/firehol/blocklist-ipsets@master/firehol_level4.netset|100000|no
+fh_webclient|https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_webclient.netset|https://cdn.jsdelivr.net/gh/firehol/blocklist-ipsets@master/firehol_webclient.netset|300|no
+fh_webserver|https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_webserver.netset|https://cdn.jsdelivr.net/gh/firehol/blocklist-ipsets@master/firehol_webserver.netset|500|no
+
+# --- C2-Tracker (上游 repo 已封存，此副本已凍結，每 7 天更新) ---
+c2_tracker|https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/c2_tracker.ipset|https://cdn.jsdelivr.net/gh/firehol/blocklist-ipsets@master/c2_tracker.ipset|1500|yes
+
+# --- ipsum level 1 (level N = 出現在 N 個以上名單；level 1 涵蓋最全) ---
+ipsum_1|https://raw.githubusercontent.com/stamparm/ipsum/master/levels/1.txt|https://cdn.jsdelivr.net/gh/stamparm/ipsum@master/levels/1.txt|80000|no
+
+# --- Emerging Threats: 被入侵主機 ---
+et_compromised|https://rules.emergingthreats.net/blockrules/compromised-ips.txt||300|yes
+
+# --- Tor 出口節點 ---
+tor_exits|https://check.torproject.org/torbulkexitlist||500|no
+
+# --- HaGeZi (ips/ 資料夾只有 tif / doh / nameserver 三个 IP 檔) ---
+hg_tif|https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/ips/tif.txt|https://raw.githubusercontent.com/hagezi/dns-blocklists@latest/ips/tif.txt|20000|yes
+hg_doh|https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/ips/doh.txt|https://raw.githubusercontent.com/hagezi/dns-blocklists@latest/ips/doh.txt|1000|no
