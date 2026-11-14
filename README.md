@@ -192,7 +192,7 @@ chunks: 12 + strict 3
 
 匯入後可再確認：
 - 相關區段是否有內容，例如 `/ip firewall filter print` 或 `/ip firewall address-list print`（依 `threat_all.rsc` 的內容而定）。
-- 若該裝置原本就有類似的規則或位址清單，可能出現名稱重複（naming conflict）錯誤，用 verbose 模式即可看到是哪一行[^4]。
+- 若該裝置原本就有類似的規則或位址清單，可能出現名稱重複（naming conflict）錯誤，用 verbose 模式即可看到是哪一行。
 
 把完整的 verbose／dry-run 輸出貼上來，我可以幫你指出是哪幾行失敗。
 查證結果如下（版本資訊來自 MikroTik 官方 CHANGELOG）。
@@ -202,19 +202,19 @@ chunks: 12 + strict 3
 | 功能 | 起始版本 | 說明 |
 | --- | --- | --- |
 | `/import` 指令本身 | v6.0 | 整份匯入，預設不逐行輸出 |
-| `verbose=yes` | **v6.2**（2013-08-02） | 逐行執行並顯示內容，遇到錯誤即停止[^2][^2] |
-| `verbose=progress` | **v7.16**（2024） | 顯示匯入進度狀態更新，且只在失敗時輸出詳細內容[^1] |
-| `dry-run` | **v7.16**（2024） | 模擬匯入以找出語法錯誤、不變更設定；原文明確標示僅在 verbose 模式下可用[^1] |
+| `verbose=yes` | **v6.2**（2013-08-02） | 逐行執行並顯示內容，遇到錯誤即停止 |
+| `verbose=progress` | **v7.16**（2024） | 顯示匯入進度狀態更新，且只在失敗時輸出詳細內容 |
+| `dry-run` | **v7.16**（2024） | 模擬匯入以找出語法錯誤、不變更設定；原文明確標示僅在 verbose 模式下可用 |
 
 v6.2 的 changelog 原文：
 
-> `*) console - added 'verbose' argument to '/import' command that enables line-by-line script import. By default import whole script at once and don't print it, as it was in version 6.0;`[^2]
+> `*) console - added 'verbose' argument to '/import' command that enables line-by-line script import. By default import whole script at once and don't print it, as it was in version 6.0;`
 
 ##### 實務上的幾點差異
 
-- **v6 只接受 `verbose=yes`／`no`**；`verbose=progress` 這個第三個選值是 v7.16 才加的[^1]。
+- **v6 只接受 `verbose=yes`／`no`**；`verbose=progress` 這個第三個選值是 v7.16 才加的。
 - **v6 沒有 `dry-run`**。你在文件裡寫的 `import file-name=threat_all.rsc verbose=yes dry-run` 只在 v7.16 以上能用，v6 裝置執行會報參數錯誤。
-- **v6 的 `verbose=yes` 會把整個檔案逐行印出**，像 `threat_all.rsc` 這種大檔會洗版；v7.16 以後建議改用 `verbose=progress`，只在失敗時才輸出細節[^1]。
+- **v6 的 `verbose=yes` 會把整個檔案逐行印出**，像 `threat_all.rsc` 這種大檔會洗版；v7.16 以後建議改用 `verbose=progress`，只在失敗時才輸出細節。
 - 你看到的 `Use verbose mode for large files` 只是提示預設（非 verbose）模式不適合大檔，不是錯誤。
 
 確認目前裝置版本可用：
@@ -237,8 +237,8 @@ v6.2 的 changelog 原文：
 
 **References**
 
-[^1]: [download.mikrotik.com](https://download.mikrotik.com/routeros/7.16rc2/CHANGELOG) (64%)
-[^2]: [download.mikrotik.com](https://download.mikrotik.com/routeros/6.2/CHANGELOG) (36%)
+: [download.mikrotik.com](https://download.mikrotik.com/routeros/7.16rc2/CHANGELOG) (64%)
+: [download.mikrotik.com](https://download.mikrotik.com/routeros/6.2/CHANGELOG) (36%)
 
 #### 2.2 兩份檔案的關係
 
@@ -256,7 +256,7 @@ v6.2 的 changelog 原文：
 
     failure: already have such entry
 
-而且 RouterOS 會在該行**中止匯入**，後面的項目都不會寫入[^3f4894#2-14][^3f4894#16-17]。
+而且 RouterOS 會在該行**中止匯入**，後面的項目都不會寫入。
 所以每次更新前先清掉同名清單：
 
     /ip firewall address-list remove [find list=threat-all]
@@ -277,7 +277,7 @@ v6.2 的 changelog 原文：
 
     /import file-name=threat_all.rsc verbose=yes dry-run
 
-`dry-run` 只模擬不變更設定；`verbose` 可設 `no` / `yes` / `progress`[^b5e551#97-107]。
+`dry-run` 只模擬不變更設定；`verbose` 可設 `no` / `yes` / `progress`。
 大檔案時畫面出現 `Use verbose mode for large files` 只是提示，不是錯誤。
 
 
