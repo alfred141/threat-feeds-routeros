@@ -336,23 +336,44 @@ Token 本身有額度限制，别把 key 寫進公開 repo。
 
 ---
 
-## 免責聲明
+## 授權
 
-本專案僅提供資料聚合與格式轉換工具。使用者需自行評估各來源之誤報率並自行承擔營運風險。
-使用本工具產生之封鎖清單前，**務必先建立自己的白名單**。
+### 本專案程式碼
+
+`build_feeds.sh`、`feeds.txt` 及本 repo 的其他原始碼檔案以
+[MIT License](LICENSE) 授權釋出。
+
+### 產生的資料（`feeds/` 目錄）
+
+本專案**不在 repo 中散布**任何威脅情資資料。所有資料在使用者
+本機由 `build_feeds.sh` 即時抓取產生，並受各自上游來源的授權與
+服務條款約束：
+
+| 來源 | 授權／條款 |
+|---|---|
+| [HaGeZi dns-blocklists](https://github.com/hagezi/dns-blocklists) | GPL-3.0（僅涵蓋其發布的清單本身，上游資料權利另計） |
+| [stamparm/ipsum](https://github.com/stamparm/ipsum) | Unlicense（公有領域奉獻） |
+| [firehol/blocklist-ipsets](https://github.com/firehol/blocklist-ipsets) | 各子清單授權不一，請查其原始來源 |
+| [abuse.ch](https://abuse.ch/) ThreatFox / URLhaus | 免費供商業與非商業使用；受 API 規範與速率限制 |
+| [Q-Feeds](https://www.qfeeds.com/) | ! 僅限內部使用，不得散布／再授權／轉售 |
+| [Emerging Threats](https://rules.emergingthreats.net/) | 請查其原始來源條款 |
+| [Tor Project](https://check.torproject.org/) | 出口節點清單，公開資料 |
+
+> **特別提醒**：本專案產生的清單若包含 Q-Feeds 資料，**不得**公開
+> 發佈或再散布。設定 `INCLUDE_QFEEDS=0` 可排除該來源。
+
+### 免責聲明
+
+本專案僅提供資料聚合與格式轉換工具，不對資料內容做任何背書。
+使用者在採用任何封鎖清單前，務必自行評估誤報率並建立自己的
+白名單。
 
 ---
 
 ## 致謝
 
-- [FireHOL](https://github.com/firehol/blocklist-ipsets) — 每日更新的 IP 清單彙整[^firehol-repo]
-- [HaGeZi](https://github.com/hagezi/dns-blocklists) — DNS Blocklists 與 TIF[^hagezi]
-- [stamparm/ipsum](https://github.com/stamparm/ipsum) — 多來源 union[^ipsum]
-- [abuse.ch](https://www.abuse.ch/) — ThreatFox / URLhaus / MalwareBazaar[^abusech-auth]
-- [Q-Feeds](https://www.qfeeds.com/) — 威脅情資聚合[^qfeeds]
-- [Emerging Threats](https://rules.emergingthreats.net/) — compromised-ips
-- [The Tor Project](https://check.torproject.org/torbulkexitlist) — Tor 出口節點清單
-
-## 授權
-
-MIT
+- [FireHOL](https://github.com/firehol/blocklist-ipsets)
+- [HaGeZi](https://github.com/hagezi/dns-blocklists)
+- [stamparm/ipsum](https://github.com/stamparm/ipsum)
+- [abuse.ch](https://abuse.ch/)
+- [Q-Feeds](https://www.qfeeds.com/)
