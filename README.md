@@ -1,2 +1,358 @@
 # threat-feeds-routeros
-把 FireHOL、HaGeZi、ipsum、abuse.ch、Q-Feeds 等公開威脅情資來源，在 **Linux**抓取、解析、跨來源去重、合併網段，切塊成 MikroTik RouterOS 可直接 `/import` 的 `.rsc` 檔。
+
+把 FireHOL、HaGeZi、ipsum、abuse.ch、Q-Feeds 等公開威脅情資來源，在 **PC 端**抓取、解析、跨來源去重、合併網段，切塊成 MikroTik RouterOS 可直接 `/import` 的 `.rsc` 檔。
+
+> 為什麼不直接在 RouterOS 上抓？
+> RouterOS 的 `/tool fetch` 變數上限 64KB、`/file read` 需要自己處理分塊邊界，逐筆 `add` 35 萬筆要跑 20～40 分鐘。PC 端一次抓好再用 `/import`（原生 parser）匯入，是快 10 倍以上的做法。
+
+---
+
+## 特色
+
+| | |
+|---|---|
+| **多來源容錯** | 每個來源都有主網址 + jsDelivr 鏡像，單一下載失敗自動切換 |
+| **跨來源全域去重** | 12 個來源合併成一份，沒有重複計費 |
+| **CIDR 等價合併** | 用 `ipaddress.collapse_addresses()` 把「完全被涵蓋」的相鄰 IP 併成網段，**不會多擋任何一個 IP** |
+| **自動切塊** | 避開 RouterOS `/import` 的 `Use verbose mode for large files` 限制 |
+| **DNS 故障繞過** | Ubuntu 上 DNS 壞掉時自動改走 `resolvectl` / `dig` 直查公共 DNS |
+| **分層輸出** | `threat_all`（forward 鏈，全開）／ `threat_strict`（input 鏈，高信心） |
+| **可稽核** | 產出 `manifest.txt`：各來源筆數、總筆數、SHA256 |
+
+---
+
+## 資料來源
+
+| # | 來源 | 內容 | 參考筆數 | 更新頻率 | strict | 備註 |
+|---|---|---|---|---|---|---|
+| 1 | `fh_l1` | dshield / feodo / fullbogons / spamhaus_drop | 3,946 網段 / 611,218,753 IPs | 每日 | ✅ | 幾乎全是大網段，記憶體友善 |
+| 2 | `fh_l2` | blocklist_de / dshield_1d / greensnow | 15,860 網段 / 34,240 IPs | 每日 | ✅ | 近 48 小時攻擊來源 |
+| 3 | `fh_l3` | bruteforceblocker / ciarmy / myip / vxvault | 12,636 網段 / 35,110 IPs | 每日 | — | 近 30 天回報 |
+| 4 | `fh_l4` | blocklist_net_ua / botscout / cybercrime / iblocklist_* | 178,778 網段 / 9,318,326 IPs | 每日 | — | ⚠️ **官方標註大量誤報**，含 IDC／雲端主機段 |
+| 5 | `fh_webclient` | 網頁不該連的來源 | 517 網段 / 520 IPs | 每日 | — | |
+| 6 | `fh_webserver` | 架設惡意內容的主機 | 894 網段 / 60,597 IPs | 每日 | — | |
+| 7 | `c2_tracker` | Cobalt Strike / Sliver / Metasploit | 2,470 IPs | 每 7 天 | ✅ | ⚠️ 上游 repo 已封存，**已凍結不再更新** |
+| 8 | `ipsum_1` | 30+ 來源 union | 136,343 IPs | 每日 | — | level N = 出現在 N 個以上名單 |
+| 9 | `et_compromised` | 已入侵主機 | ~584 IPs | 每日 | ✅ | |
+| 10 | `tor_exits` | Tor 出口節點 | ~1,252 IPs | 每日 | — | |
+| 11 | `hg_tif` | HaGeZi Threat Intelligence Feed | 36,031 IPs | 每日 | ✅ | 惡意軟體 / C2 / 釣魚 / 挖礦 |
+| 12 | `hg_doh` | 公開 DoH / DoT 解析器 | 1,779 IPs | 每日 | — | 用於封鎖 DNS 洩漏 |
+| 13 | `tf_recent` | ThreatFox（abuse.ch） | 動態 | 每日 | ✅ | ⚠️ **需 Auth-Key** |
+| 14 | `urlhaus` | URLhaus（abuse.ch） | 動態 | 每日 | — | ⚠️ **需 Auth-Key** |
+| 15 | `qf_malware` | Q-Feeds malware IP | 動態 | 每日 | — | 需免費 token；每頁 4,000 筆自動分頁 |
+
+`strict` = 建議納入 **input 鏈**（擋 router 自身）的子集。
+
+### ⚠️ 來源注意事項
+
+**FireHOL `level4` 誤報風險最高**
+`firehol_level4` 官方說明直接寫「may include a large number of false positives」[^firehol-level4]，內容包含 `blocklist_net_ua`（IDC / 雲端主機段）與 `iblocklist_*`。容易誤傷 Cloudflare、GitHub Actions、各類 SaaS。
+→ **建議：匯入後觀察一週，若有誤擋就把 `fh_l4` 從 `feeds.txt` 移除再重跑。**
+
+**abuse.ch 需要 Auth-Key**
+自 2025 年 10 月起，ThreatFox / URLhaus / MalwareBazaar 的檔案匯出都需要在 URL 中帶入 Auth-Key[^abusech-auth]，舊的公開匯出路徑已回傳 `410 Gone`[^abusech-410]。
+→ 免費申請：https://auth.abuse.ch/
+
+**C2-Tracker 已封存**
+原始 repo 的 `data/` 文字檔已被移除且不再更新，本專案改用 FireHOL 保留的 `c2_tracker.ipset`（每 7 天更新，但因上游已死實際上等於凍結）[^firehol-c2]。要即時的 C2 資料請依賴 ThreatFox。
+
+**Q-Feeds 免費版**
+Community 版為每日更新、內容為 OSINT 彙整。更快的更新頻率與商業情資需付費方案。
+
+---
+
+## 系統需求
+
+- Linux（Ubuntu / Debian 已實測），macOS 亦可
+- `bash` 4+
+- `python3`（用於 CIDR 合併與 CSV 解析）
+- `curl`
+- `unzip`（選用，ThreatFox 改用 python zipfile 則不需要）
+
+---
+
+## 快速開始
+
+```bash
+git clone <your-repo> threat-feeds-routeros
+cd threat-feeds-routeros
+chmod +x build_feeds.sh
+
+# 互動式輸入 token（不會寫入 shell history）
+read -rs -p "Q-Feeds token : " QF_TOKEN; echo
+read -rs -p "abuse.ch AuthKey: " ABUSECH_KEY; echo
+export QF_TOKEN ABUSECH_KEY
+
+bash build_feeds.sh
+
+unset QF_TOKEN ABUSECH_KEY
+```
+
+### 輸出
+
+```
+=== 抓取靜態來源 ===
+fh_l1          4648
+fh_l2          16073
+fh_l3          13156
+fh_l4          186543
+fh_webclient   520
+fh_webserver   976
+c2_tracker     2470
+ipsum_1        136343
+et_compromised 584
+tor_exits      1252
+hg_tif         36031
+hg_doh         1779
+
+=== ThreatFox (abuse.ch) ===
+tf_recent      12345
+
+=== Q-Feeds ===
+      qfeeds page 1    4000 lines
+      ...
+qf_malware     45678
+
+=== 合併去重 ===
+merged unique : 358432
+strict unique : 62110
+
+=== CIDR 合併 ===
+CIDR merge   : 358432 -> 281093 entries (78.4% retained, 0 invalid)
+
+=== 產生 .rsc ===
+-rw-r--r-- 1 user user  20M threat_all.rsc
+-rw-r--r-- 1 user user 3.5M threat_strict.rsc
+chunks: 12 + strict 3
+```
+
+---
+
+## 環境變數
+
+| 變數 | 預設 | 說明 |
+|---|---|---|
+| `QF_TOKEN` | 空 | Q-Feeds API token（https://tip.qfeeds.com/） |
+| `ABUSECH_KEY` | 空 | abuse.ch Auth-Key（https://auth.abuse.ch/） |
+| `INCLUDE_QFEEDS` | `1` | 是否匯入 Q-Feeds |
+| `INCLUDE_THREATFOX` | `1` | 是否匯入 ThreatFox |
+| `INCLUDE_URLHAUS` | `1` | 是否匯入 URLhaus |
+| `QF_INCLUDE_IPV6` | `0` | `1` = 保留 Q-Feeds 的 IPv6 項目 |
+| `QF_LIMIT` | `4000` | Q-Feeds 每頁筆數（官方腳本值） |
+| `COLLAPSE_CIDR` | `1` | `0` = 不做網段合併 |
+| `CHUNK_SIZE` | `25000` | 每個 chunk 行數；匯入報錯就減半 |
+| `OUT_DIR` | `feeds` | 產物輸出目錄 |
+
+> 🔐 **Token 安全**：`QF_TOKEN` / `ABUSECH_KEY` 請務必用 `read -rs` 輸入，不要直接寫在指令列（會進 shell history），也**不要 commit 進 git**。
+
+---
+
+## 匯入 MikroTik RouterOS
+
+### 0. 前置：先建白名單 ⚠️
+
+**先做這步，否則會把自己鎖在門外。**
+
+```
+/ip firewall address-list add list=trusted address=<你的管理IP> comment="admin"
+/ip firewall address-list add list=trusted address=<你的出口IP> comment="office"
+```
+
+### 1. 上傳檔案
+
+用 WinSCP / SFTP / Files 把 `chunk_*.rsc` 與 `schunk_*.rsc` 全部傳到 router。
+
+### 2. 匯入（逐塊）
+
+```
+/ip firewall address-list remove [find where list=threat_all]
+/ip firewall address-list remove [find where list=threat_strict]
+
+/import file-name=chunk_00.rsc
+/import file-name=chunk_01.rsc
+...
+/import file-name=schunk_00.rsc
+```
+
+> 為什麼要切塊？
+> RouterOS 的 `/import` 遇到大型檔案且未加 `verbose=yes` 時，會直接拒絕執行並提示 `Use verbose mode for large files`。切塊後每檔 2.5 萬行即可正常匯入，也讓排程可以自動執行。
+> 若某塊仍報錯，把 `CHUNK_SIZE` 改成 `12500` 重切。
+
+### 3. 驗證
+
+```
+/ip firewall address-list print count-only where list=threat_all
+/ip firewall address-list print count-only where list=threat_strict
+/system resource print
+```
+
+### 4. 防火牆規則
+
+```
+/ip firewall filter add chain=input action=accept src-address-list=trusted \
+    comment="Accept trusted" place-before=0
+/ip firewall filter add chain=input action=drop src-address-list=threat_strict \
+    comment="Drop threat (input)" place-before=0
+
+/ip firewall filter add chain=forward action=accept src-address-list=trusted \
+    comment="Accept trusted" place-before=0
+/ip firewall filter add chain=forward action=drop src-address-list=threat_all \
+    comment="Drop threat (forward)" place-before=0
+
+# 封鎖公開 DoH / DoT（只放 forward，不影響 router 自己的 DNS）
+/ip firewall filter add chain=forward action=drop src-address-list=hg_doh \
+    comment="Block public DoH/DoT" place-before=0
+```
+
+### 5. 排程（重開機自動重建）
+
+`timeout=1d` 的項目只存在 **RAM**，重開機會消失，所以 `start-time=startup` 一定要有。
+
+建立 `/system script`（名稱 `import-threat`）：
+
+```routeros
+{
+  /ip firewall address-list remove [find where list=threat_all]
+  /ip firewall address-list remove [find where list=threat_strict]
+  :local ok 0
+  :local bad 0
+  :foreach f in=[/file find where name~"^chunk_"] do={
+    :local n [/file get $f name]
+    :do { /import file-name=$n :set ok ($ok + 1) } on-error={ :set bad ($bad + 1) }
+  }
+  :foreach f in=[/file find where name~"^schunk_"] do={
+    :local n [/file get $f name]
+    :do { /import file-name=$n :set ok ($ok + 1) } on-error={ :set bad ($bad + 1) }
+  }
+  :log info ("threat import: ok=" . $ok . " failed=" . $bad)
+}
+```
+
+```
+/system scheduler add name=threatfeeds-startup on-event="/system script run import-threat" \
+    start-time=startup policy=read,write,policy,test
+```
+
+> 排程每天重跑也可以，但一次要 10～25 分鐘，建議排離峰時間。
+
+---
+
+## 記憶體估算
+
+RouterOS 的 address-list **每一筆都是一個獨立物件**，不論是 `/32` 還是 `/24`。實測約 **320 bytes/筆**。
+
+| 項目 | 筆數 | 估 RAM |
+|---|---|---|
+| `threat_all` | ~280,000 | ~90 MiB |
+| `threat_strict` | ~62,000 | ~20 MiB |
+| **合計** | | **~110 MiB** |
+
+hEX S（512MiB）實測餘裕足夠。匯入前後都跑一次 `/system resource print` 確認。
+
+---
+
+## 關於網段合併（CIDR collapse）
+
+很多清單看起來「都是單一 IP 沒網段」，這是**上游本來就是 host 清單**，不是處理錯誤：
+
+- FireHOL 的 `.netset` 檔頭標示 `Aggregation : none` —— 它**刻意不**把相鄰 IP 併成大網段（因為那會多擋無辜 IP）
+- `ipsum_1`、`hg_tif`、`c2_tracker`、`tor_exits` 全部都是單一 IP 格式
+- 但 `fh_l1` 幾乎全是網段（`0.0.0.0/8`、`224.0.0.0/3`…），`fh_l4` 則是混合
+
+`collapse_addresses()` 只在**集合完全被涵蓋**時才合併，所以：
+
+```
+1.2.3.4 + 1.2.3.5 + 1.2.3.6 + 1.2.3.7  →  1.2.3.4/30
+```
+
+兩者封鎖的位址集合**完全相同**，不會多擋任何一個 IP，但物件數從 4 降到 1。
+
+---
+
+## 疑難排解
+
+<details>
+<summary><b>DNS: Could not resolve host</b></summary>
+
+Ubuntu 上 DNS 查不到名稱。腳本會自動嘗試 `getent` → `resolvectl` → `dig @1.1.1.1` 三層備援。
+
+手動修：
+
+```bash
+IFACE=$(ip -o -4 route show to default | awk '{print $5; exit}')
+sudo resolvectl revert "$IFACE"
+sudo resolvectl dns "$IFACE" 1.1.1.1 8.8.8.8
+sudo resolvectl domain "$IFACE" ~.
+```
+
+若 `/etc/resolv.conf` 是實體檔而非 symlink，`resolvectl` 設定不會生效：
+
+```bash
+ls -l /etc/resolv.conf
+sudo rm -f /etc/resolv.conf
+sudo ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+sudo systemctl restart systemd-resolved
+```
+</details>
+
+<details>
+<summary><b>ThreatFox / URLhaus 回傳 401 / 403 / 410</b></summary>
+
+abuse.ch 已強制 Auth-Key，且必須放在 URL 中[^abusech-auth]。免費申請：https://auth.abuse.ch/
+Token 本身有額度限制，别把 key 寫進公開 repo。
+</details>
+
+<details>
+<summary><b>/import 顯示 Use verbose mode for large files</b></summary>
+
+檔案太大且沒加 `verbose=yes`。解法是用 `chunk_*.rsc` 切塊檔匯入，或改小 `CHUNK_SIZE`。
+</details>
+
+<details>
+<summary><b>匯入後連不上 router</b></summary>
+
+一定是被自己的封鎖規則鎖住。用 MAC-WinBox 進去，把 `trusted` 白名單先建好，或暫時把 drop 規則移除：
+
+```
+/ip firewall filter print
+/ip firewall filter remove [find where comment="Drop threat"]
+```
+</details>
+
+<details>
+<summary><b>RAM 不夠 / 匯入後 router 很卡</b></summary>
+
+1. 從 `feeds.txt` 移除 `fh_l4`（約 18.6 萬筆，佔最多 RAM 且最容易誤擋）
+2. 再考慮移除 `ipsum_1`（13.6 萬筆）
+3. 保留 `fh_l1` + `fh_l2` + `hg_tif` + `c2_tracker` + `et_compromised` 即可覆蓋多數威脅
+</details>
+
+<details>
+<summary><b>某個來源筆數是 0 或 FAIL</b></summary>
+
+腳本會在最後顯示 `failed_feeds=N` 並以 exit code 1 結束，方便 cron / CI 監控。
+常見原因：token 過期、來源改路徑、暫時性網路故障。
+</details>
+
+---
+
+## 免責聲明
+
+本專案僅提供資料聚合與格式轉換工具。使用者需自行評估各來源之誤報率並自行承擔營運風險。
+使用本工具產生之封鎖清單前，**務必先建立自己的白名單**。
+
+---
+
+## 致謝
+
+- [FireHOL](https://github.com/firehol/blocklist-ipsets) — 每日更新的 IP 清單彙整[^firehol-repo]
+- [HaGeZi](https://github.com/hagezi/dns-blocklists) — DNS Blocklists 與 TIF[^hagezi]
+- [stamparm/ipsum](https://github.com/stamparm/ipsum) — 多來源 union[^ipsum]
+- [abuse.ch](https://www.abuse.ch/) — ThreatFox / URLhaus / MalwareBazaar[^abusech-auth]
+- [Q-Feeds](https://www.qfeeds.com/) — 威脅情資聚合[^qfeeds]
+- [Emerging Threats](https://rules.emergingthreats.net/) — compromised-ips
+- [The Tor Project](https://check.torproject.org/torbulkexitlist) — Tor 出口節點清單
+
+## 授權
+
+MIT
