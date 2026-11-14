@@ -162,7 +162,7 @@ chunks: 12 + strict 3
 
 用 WinSCP / SFTP / Files 把 `chunk_*.rsc` 與 `schunk_*.rsc` 全部傳到 router。
 
-### 2. 匯入（逐塊）
+### 2. 匯入（舊版，逐塊）
 
 ```
 /ip firewall address-list remove [find where list=threat_all]
@@ -177,6 +177,15 @@ chunks: 12 + strict 3
 > 為什麼要切塊？
 > RouterOS 的 `/import` 遇到大型檔案且未加 `verbose=yes` 時，會直接拒絕執行並提示 `Use verbose mode for large files`。切塊後每檔 2.5 萬行即可正常匯入，也讓排程可以自動執行。
 > 若某塊仍報錯，把 `CHUNK_SIZE` 改成 `12500` 重切。
+### 2. 匯入（完整）
+```
+/import threat_all.rsc
+```
+|關係|內容|
+|---|---|
+| `threat_all.rsc`	| 全部來源的聯集（feeds.txt 全部 + abuse.ch + Q-Feeds）|
+| `threat_strict.rsc`	| 其中被標記 strict=yes 的子集 ⊂ threat_all |
+
 
 ### 3. 驗證
 
