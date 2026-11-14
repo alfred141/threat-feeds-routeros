@@ -162,7 +162,7 @@ chunks: 12 + strict 3
 
 用 WinSCP / SFTP / Files 把 `chunk_*.rsc` 與 `schunk_*.rsc` 全部傳到 router。
 
-### 2. 匯入（舊版，逐塊）
+### 2. 匯入（舊版Router OS，逐塊）
 
 ```
 /ip firewall address-list remove [find where list=threat_all]
@@ -177,14 +177,109 @@ chunks: 12 + strict 3
 > 為什麼要切塊？
 > RouterOS 的 `/import` 遇到大型檔案且未加 `verbose=yes` 時，會直接拒絕執行並提示 `Use verbose mode for large files`。切塊後每檔 2.5 萬行即可正常匯入，也讓排程可以自動執行。
 > 若某塊仍報錯，把 `CHUNK_SIZE` 改成 `12500` 重切。
-### 2. 匯入（完整）
-```
-/import threat_all.rsc
-```
-|關係|內容|
+
+### 2. 匯入（一個檔案完整匯入）
+
+#### 2.1 指令
+
+| 目的 | 指令 |
 |---|---|
-| `threat_all.rsc`	| 全部來源的聯集（feeds.txt 全部 + abuse.ch + Q-Feeds）|
-| `threat_strict.rsc`	| 其中被標記 strict=yes 的子集 ⊂ threat_all |
+| 先測試檔案，不動到現有設定 | `import file-name=threat_all.rsc verbose=yes dry-run` |
+| 只看匯入進度，不逐行輸出 | `import file-name=threat_all.rsc verbose=progress` |
+| 重跑並找出卡住或出錯的行 | `import file-name=threat_all.rsc verbose=yes` |
+
+在 verbose 模式下會逐行執行並回報，遇到問題時會停下來並指出出錯的位置；`dry-run` 則可在完全不更動設定的情況下找出錯誤。
+
+匯入後可再確認：
+- 相關區段是否有內容，例如 `/ip firewall filter print` 或 `/ip firewall address-list print`（依 `threat_all.rsc` 的內容而定）。
+- 若該裝置原本就有類似的規則或位址清單，可能出現名稱重複（naming conflict）錯誤，用 verbose 模式即可看到是哪一行[^4]。
+
+把完整的 verbose／dry-run 輸出貼上來，我可以幫你指出是哪幾行失敗。
+查證結果如下（版本資訊來自 MikroTik 官方 CHANGELOG）。
+
+##### `/import` 各參數的起始版本
+
+| 功能 | 起始版本 | 說明 |
+| --- | --- | --- |
+| `/import` 指令本身 | v6.0 | 整份匯入，預設不逐行輸出 |
+| `verbose=yes` | **v6.2**（2013-08-02） | 逐行執行並顯示內容，遇到錯誤即停止[^2][^2] |
+| `verbose=progress` | **v7.16**（2024） | 顯示匯入進度狀態更新，且只在失敗時輸出詳細內容[^1] |
+| `dry-run` | **v7.16**（2024） | 模擬匯入以找出語法錯誤、不變更設定；原文明確標示僅在 verbose 模式下可用[^1] |
+
+v6.2 的 changelog 原文：
+
+> `*) console - added 'verbose' argument to '/import' command that enables line-by-line script import. By default import whole script at once and don't print it, as it was in version 6.0;`[^2]
+
+##### 實務上的幾點差異
+
+- **v6 只接受 `verbose=yes`／`no`**；`verbose=progress` 這個第三個選值是 v7.16 才加的[^1]。
+- **v6 沒有 `dry-run`**。你在文件裡寫的 `import file-name=threat_all.rsc verbose=yes dry-run` 只在 v7.16 以上能用，v6 裝置執行會報參數錯誤。
+- **v6 的 `verbose=yes` 會把整個檔案逐行印出**，像 `threat_all.rsc` 這種大檔會洗版；v7.16 以後建議改用 `verbose=progress`，只在失敗時才輸出細節[^1]。
+- 你看到的 `Use verbose mode for large files` 只是提示預設（非 verbose）模式不適合大檔，不是錯誤。
+
+確認目前裝置版本可用：
+
+```
+/system resource print
+```
+
+如果這份文件要同時支援 v6 與 v7 裝置，建議把驗證步驟改成分版本寫法，例如：
+
+```
+# v7.16 以上：模擬匯入，不變更設定
+/import file-name=threat_all.rsc verbose=yes dry-run
+
+# v6：只能逐行執行並在錯誤處停下
+/import file-name=threat_all.rsc verbose=yes
+```
+
+並在文件中標註 `dry-run` 需 v7.16 以上、否則讀者會在 v6 裝置上踩到參數錯誤。
+
+**References**
+
+[^1]: [download.mikrotik.com](https://download.mikrotik.com/routeros/7.16rc2/CHANGELOG) (64%)
+[^2]: [download.mikrotik.com](https://download.mikrotik.com/routeros/6.2/CHANGELOG) (36%)
+
+#### 2.2 兩份檔案的關係
+
+| 檔案 | 內容 | 來源 |
+| --- | --- | --- |
+| `threat_all.rsc` | 完整清單 | `feeds.txt` 全部 + abuse.ch + Q-Feeds 的聯集 |
+| `threat_strict.rsc` | 精簡清單 | 僅標記 `strict=yes` 的項目 ⊂ `threat_all.rsc` |
+
+簡言之：**`threat_strict.rsc` 的每一筆都已經包含在 `threat_all.rsc` 裡面**，
+兩者不是互斥清單，而是「完整 ⊃ 精簡」的關係。
+
+#### 2.3 匯入前必做：清除舊清單
+
+重複執行匯入會造成重複項目報錯：
+
+    failure: already have such entry
+
+而且 RouterOS 會在該行**中止匯入**，後面的項目都不會寫入[^3f4894#2-14][^3f4894#16-17]。
+所以每次更新前先清掉同名清單：
+
+    /ip firewall address-list remove [find list=threat-all]
+    /ip firewall address-list remove [find list=threat-strict]
+    /import file-name=threat_all.rsc
+    /import file-name=threat_strict.rsc
+
+> 若 `threat_all.rsc` 與 `threat_strict.rsc` 寫進**同一個** list 名稱，
+> 第二份會整份撞名而匯不進去。請讓兩份檔案使用**不同的 list 名稱**
+> （例如 `threat-all` / `threat-strict`），或在腳本產生端就分流好。
+
+#### 2.4 驗證
+
+    /ip firewall address-list print count-only where list=threat-all
+    /ip firewall address-list print count-only where list=threat-strict
+
+匯入前想先試跑、不動到現有設定：
+
+    /import file-name=threat_all.rsc verbose=yes dry-run
+
+`dry-run` 只模擬不變更設定；`verbose` 可設 `no` / `yes` / `progress`[^b5e551#97-107]。
+大檔案時畫面出現 `Use verbose mode for large files` 只是提示，不是錯誤。
+
 
 
 ### 3. 驗證
