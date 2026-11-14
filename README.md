@@ -50,11 +50,11 @@
 → **建議：匯入後觀察一週，若有誤擋就把 `fh_l4` 從 `feeds.txt` 移除再重跑。**
 
 **abuse.ch 需要 Auth-Key**
-自 2025 年 10 月起，ThreatFox / URLhaus / MalwareBazaar 的檔案匯出都需要在 URL 中帶入 Auth-Key[^abusech-auth]，舊的公開匯出路徑已回傳 `410 Gone`[^abusech-410]。
+自 2025 年 10 月起，ThreatFox / URLhaus / MalwareBazaar 的檔案匯出都需要在 URL 中帶入 Auth-Key[^abusech-auth]，舊的公開匯出路徑已回傳 `410 Gone`。
 → 免費申請：https://auth.abuse.ch/
 
 **C2-Tracker 已封存**
-原始 repo 的 `data/` 文字檔已被移除且不再更新，本專案改用 FireHOL 保留的 `c2_tracker.ipset`（每 7 天更新，但因上游已死實際上等於凍結）[^firehol-c2]。要即時的 C2 資料請依賴 ThreatFox。
+原始 repo 的 `data/` 文字檔已被移除且不再更新，本專案改用 FireHOL 保留的 `c2_tracker.ipset`（每 7 天更新，但因上游已死實際上等於凍結。要即時的 C2 資料請依賴 ThreatFox。
 
 **Q-Feeds 免費版**
 Community 版為每日更新、內容為 OSINT 彙整。更快的更新頻率與商業情資需付費方案。
@@ -194,8 +194,7 @@ chunks: 12 + strict 3
 - 相關區段是否有內容，例如 `/ip firewall filter print` 或 `/ip firewall address-list print`（依 `threat_all.rsc` 的內容而定）。
 - 若該裝置原本就有類似的規則或位址清單，可能出現名稱重複（naming conflict）錯誤，用 verbose 模式即可看到是哪一行。
 
-把完整的 verbose／dry-run 輸出貼上來，我可以幫你指出是哪幾行失敗。
-查證結果如下（版本資訊來自 MikroTik 官方 CHANGELOG）。
+把完整的 verbose／dry-run 輸出貼上來，我可以幫你指出是哪幾行失敗。查證如下（版本資訊來自 MikroTik 官方 CHANGELOG）。
 
 ##### `/import` 各參數的起始版本
 
@@ -468,9 +467,7 @@ Token 本身有額度限制，别把 key 寫進公開 repo。
 
 ### 免責聲明
 
-本專案僅提供資料聚合與格式轉換工具，不對資料內容做任何背書。
-使用者在採用任何封鎖清單前，務必自行評估誤報率並建立自己的
-白名單。
+本專案僅提供資料聚合與格式轉換工具，不對資料內容做任何背書。使用者在採用任何封鎖清單前，務必自行評估誤報率並建立自己的白名單。
 
 ---
 
