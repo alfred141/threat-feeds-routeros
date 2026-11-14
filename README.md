@@ -1,6 +1,6 @@
 # threat-feeds-routeros
 
-把 FireHOL、HaGeZi、ipsum、abuse.ch、Q-Feeds 等公開威脅情資來源，在 **PC 端**抓取、解析、跨來源去重、合併網段，切塊成 MikroTik RouterOS 可直接 `/import` 的 `.rsc` 檔。
+把 FireHOL、HaGeZi、ipsum、abuse.ch、Q-Feeds 等公開威脅情資來源，在 **Linux**抓取、解析、跨來源去重、合併網段，切塊成 MikroTik RouterOS 可直接 `/import` 的 `.rsc` 檔。
 
 > 為什麼不直接在 RouterOS 上抓？
 > RouterOS 的 `/tool fetch` 變數上限 64KB、`/file read` 需要自己處理分塊邊界，逐筆 `add` 35 萬筆要跑 20～40 分鐘。PC 端一次抓好再用 `/import`（原生 parser）匯入，是快 10 倍以上的做法。
@@ -267,20 +267,6 @@ v6.2 的 changelog 原文：
 > 第二份會整份撞名而匯不進去。請讓兩份檔案使用**不同的 list 名稱**
 > （例如 `threat-all` / `threat-strict`），或在腳本產生端就分流好。
 
-#### 2.4 驗證
-
-    /ip firewall address-list print count-only where list=threat-all
-    /ip firewall address-list print count-only where list=threat-strict
-
-匯入前想先試跑、不動到現有設定：
-
-    /import file-name=threat_all.rsc verbose=yes dry-run
-
-`dry-run` 只模擬不變更設定；`verbose` 可設 `no` / `yes` / `progress`。
-大檔案時畫面出現 `Use verbose mode for large files` 只是提示，不是錯誤。
-
-
-
 ### 3. 驗證
 
 ```
@@ -288,6 +274,12 @@ v6.2 的 changelog 原文：
 /ip firewall address-list print count-only where list=threat_strict
 /system resource print
 ```
+匯入前想先試跑、不動到現有設定：
+```
+    /import file-name=threat_all.rsc verbose=yes dry-run
+```
+`dry-run` 只模擬不變更設定；`verbose` 可設 `no` / `yes` / `progress`。
+大檔案時畫面出現 `Use verbose mode for large files` 只是提示，不是錯誤。
 
 ### 4. 防火牆規則
 
