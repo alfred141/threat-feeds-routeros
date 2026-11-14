@@ -1,0 +1,18 @@
+# 產物
+feeds/
+*.rsc
+*.cidr
+*.ip
+*.raw
+
+# 機敏資料（token / key）
+.env
+secrets.env
+*token*
+*authkey*
+
+# 編輯器 / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
