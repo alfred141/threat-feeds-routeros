@@ -276,7 +276,7 @@ v6.2 的 changelog 原文：
 ```
 匯入前想先試跑、不動到現有設定：
 ```
-    /import file-name=threat_all.rsc verbose=yes dry-run
+/import file-name=threat_all.rsc verbose=yes dry-run
 ```
 `dry-run` 只模擬不變更設定；`verbose` 可設 `no` / `yes` / `progress`。
 大檔案時畫面出現 `Use verbose mode for large files` 只是提示，不是錯誤。
